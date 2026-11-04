@@ -1,0 +1,4 @@
+{"theme":"红白","cards":[
+{"name":"01-封面","bg":"底图/封面A-物件.png","html":"<div class=\"wrap\" style=\"top:420px\"><span class=\"kicker\">AI 写作</span><h1>一个人<br>跑完<em>公众号</em></h1><div class=\"brush\"></div><p class=\"sub\">Claude Code 创作 Agent 全流程</p></div>"},
+{"name":"02-流程","page":"2/3","html":"<div class=\"wrap\"><h2>七步<em>流水线</em></h2><ol class=\"items\"><li>选题<small>从读者的问题出发</small></li><li>写稿 + 改稿<small>按你的改稿对照自改</small></li><li>封面 / 配图<small>一条命令生图</small></li><li>排版 + 小红书卡片<small>字由浏览器排，不错字</small></li><li>发稿前检查<small>清单逐项打勾</small></li></ol></div>"},
+{"name":"03-对比","page":"3/3","html":"<div class=\"wrap\"><h2>人只做<em>判断</em></h2><div class=\"stats\"><div class=\"stat\"><div class=\"big\">3h</div><div class=\"lab\">以前一篇</div></div><div class=\"arrow\">→</div><div class=\"stat\"><div class=\"big\"><em>40m</em></div><div class=\"lab\">现在一篇</div></div></div><div class=\"card\">示意数据，仅作卡片样式演示。</div><span class=\"tag\">#公众号运营</span></div>"}]}

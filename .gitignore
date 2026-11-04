@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+__pycache__/
+*.pyc
+# 你自己的文章、语料与形象素材默认不入库
+文章/*
+!文章/.gitkeep
+!文章/示例/
+!文章/2026-01-01-示例文章/
+语料/改稿对照/samples/*
+!语料/改稿对照/samples/.gitkeep
+语料/范文/*
+!语料/范文/.gitkeep
+素材/IP/*
+!素材/IP/README.md
