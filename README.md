@@ -181,7 +181,16 @@ A：不会，文字由 Chromium 渲染，模型只负责底图。
 
 - [yituo-hub-studio](https://github.com/yan9651688/yituo-hub-studio) —— 公众号排版工坊：20 套主题、AI 创作、生图工作台
 - [studio.yituohub.com](https://studio.yituohub.com) —— 在线体验，无需安装
-- [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill) —— 本仓库内置的排版 skill
+
+## 💬 联系作者 / 交流群
+
+<div align="center">
+
+<img src="docs/images/wechat-qr-card.png" width="640" alt="加我微信 · 交流公众号创作 Agent">
+
+<sub>扫码加微信，备注「创作 Agent」，拉你进交流群</sub>
+
+</div>
 
 ## 📄 许可证
 
