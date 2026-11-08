@@ -4,17 +4,14 @@
 # 分隔线和 END 线改成纯色：渐变可能触发公众号 darkmode-no-gradient 检测。
 import base64
 import html
+import hashlib
 import json
+import mimetypes
 import os
 import re
 import sys
-
-md_path = sys.argv[2]
-out_path = sys.argv[3]
-md_dir = os.path.dirname(os.path.abspath(md_path))
-# 配置按文章目录名取
-cfg = json.load(open(sys.argv[1], encoding='utf-8'))[os.path.basename(md_dir)]
-text = open(md_path, encoding='utf-8').read().replace('\r\n', '\n')
+import tempfile
+from pathlib import Path
 
 FONT = "-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif"
 used = []  # 已经划过的短语，全文只划一次
@@ -25,7 +22,7 @@ def esc(s):
 
 
 def leaf(s):
-    return '<span leaf="">' + esc(s) + '</span>'
+    return '<span leaf="">' + esc(s).replace('\n', '<br>') + '</span>'
 
 
 def underline_spans(s, limit=3):
@@ -63,7 +60,10 @@ def para(s):
 
 def image(alt, src):
     with open(os.path.join(md_dir, src), 'rb') as f:
-        data = 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+        mime = mimetypes.guess_type(src)[0]
+        if mime not in {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}:
+            raise ValueError('不支持的图片类型：' + src)
+        data = 'data:' + mime + ';base64,' + base64.b64encode(f.read()).decode()
     mb = '8px' if alt else '10px'
     h = ('<section style="background:#FFF;border-radius:12px;padding:6px;border:1px solid #E5E7EB;'
          'box-shadow:0 4px 12px -2px rgba(0,0,0,0.08);margin-bottom:' + mb + ';">'
@@ -71,7 +71,7 @@ def image(alt, src):
          '<span leaf=""><img src="' + data + '" style="max-width:100%;height:auto;display:block;margin:0 auto;"></span>'
          '</section></section>')
     if alt:
-        h += '<p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 24px;">' + leaf('— ' + alt) + '</p>'
+        h += '<p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 24px;">' + leaf(alt) + '</p>'
     return h
 
 
@@ -146,92 +146,223 @@ END = ('<section style="padding:0 10px;"><section style="text-align:center;margi
        '<span style="height:2px;width:60px;background:#DC2626;margin-left:12px;"><span leaf=""><br></span></span>'
        '</section></section></section>')
 
-# ---- 解析 ----
-# ``` 围栏先抽出来，免得里面的空行把一段提示词拆成好几块
-codes = []
+# ---- 解析与输出 ----
+# 按行识别结构，标题、图片和代码块不依赖前后有空行。
+HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+)$")
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+IMAGE = re.compile(r"!\[(.*?)\]\(([^\n]+?)\)")
+TABLE_RULE = re.compile(r"^:?-{3,}:?$")
 
 
-def _keep_code(m):
-    codes.append(m.group(1).split('\n'))
-    return '\n\n\x00CODE%d\x00\n\n' % (len(codes) - 1)
+def parse_blocks(text):
+    lines = text.splitlines()
+    blocks, paragraph = [], []
 
+    def flush():
+        if paragraph:
+            blocks.append(('paragraph', '\n'.join(paragraph)))
+            paragraph.clear()
 
-text = re.sub(r'^```[^\n]*\n(.*?)\n```$', _keep_code, text, flags=re.S | re.M)
-blocks = [b.strip() for b in re.split(r'\n\s*\n', text) if b.strip()]
-title_line = blocks.pop(0)
-assert title_line.startswith('# ')
-quote = None
-if blocks and blocks[0].startswith('> '):
-    quote = blocks.pop(0)[2:].strip()
-# 文末落款单独拿出来放签名区
-sign = blocks.pop() if cfg.get('signoff_prefix') and cfg['signoff_prefix'] in blocks[-1] else None
-
-out = []
-# 封面放正文首图：公众号选封面时可以「从正文选择」，不用再上传一次
-cover = os.path.join(md_dir, '配图', '封面-公众号.jpg')
-if os.path.exists(cover):
-    with open(cover, 'rb') as f:
-        out.append('<section style="margin:0 0 20px;">'
-                   '<span leaf=""><img src="data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
-                   + '" style="width:100%;height:auto;display:block;"></span></section>')
-if quote:
-    out.append(quote_card(quote))
-chapters = 0
-in_chapter = False
-pre = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            flush()
+            i += 1
+            continue
+        fence = FENCE.match(line)
+        heading = HEADING.match(line)
+        images = list(IMAGE.finditer(line))
+        if fence:
+            flush()
+            marker = fence.group(1)
+            closing = re.compile(r'^ {0,3}' + re.escape(marker[0]) +
+                                 '{' + str(len(marker)) + r',}[ \t]*$')
+            code = []
+            i += 1
+            while i < len(lines) and not closing.match(lines[i]):
+                code.append(lines[i])
+                i += 1
+            if i == len(lines):
+                raise ValueError('代码围栏未闭合，未生成排版文件')
+            blocks.append(('code', code))
+        elif heading:
+            flush()
+            blocks.append(('heading' + str(len(heading.group(1))), heading.group(2)))
+        elif images and not IMAGE.sub('', line).strip():
+            flush()
+            blocks.extend(('image', (m.group(1), m.group(2))) for m in images)
+        elif line.lstrip().startswith('!['):
+            raise ValueError('图片必须独占一行；请把同一行的正文另起一行：' + line)
+        elif line.startswith('>'):
+            flush()
+            quote = []
+            while i < len(lines) and lines[i].startswith('>'):
+                content = lines[i][1:]
+                quote.append(content[1:] if content.startswith(' ') else content)
+                i += 1
+            blocks.append(('quote', '\n'.join(quote)))
+            continue
+        elif line.lstrip().startswith('|'):
+            flush()
+            rows = []
+            while i < len(lines) and lines[i].lstrip().startswith('|'):
+                rows.append(lines[i])
+                i += 1
+            cells = [[c.strip() for c in row.strip().strip('|').split('|')] for row in rows]
+            if len(cells) >= 2 and all(TABLE_RULE.fullmatch(c) for c in cells[1]):
+                if any(len(row) != len(cells[0]) for row in cells[1:]):
+                    raise ValueError('表格列数不一致，未生成排版文件')
+                blocks.append(('table', rows))
+            else:
+                # 不是 Markdown 表格的竖线文本照原样保留，不吞第二行。
+                blocks.append(('paragraph', '\n'.join(rows)))
+            continue
+        else:
+            paragraph.append(line)
+        i += 1
+    flush()
+    return blocks
 
 
 def code_block(lines):
-    # common-components.md 1b 浅色代码块：每行一个 <p>，不用 white-space:pre，空行用全角空格占位
-    p = ('<p style="margin:0;font-family:\'SF Mono\',Consolas,Monaco,monospace;font-size:13px;line-height:1.6;color:#24292F;">'
-         '<span leaf="">{}</span></p>')
+    # 保留代码里的缩进和空行；不插入全角空格冒充源文本。
     return ('<section style="margin:0 0 20px;border-radius:8px;overflow:hidden;background:#F6F8FA;border:1px solid #E5E7EB;border-left:3px solid #DC2626;">'
             '<section style="padding:7px 14px;border-bottom:1px solid #E5E7EB;">'
             '<span style="font-size:12px;color:#9CA3AF;font-family:Consolas,Monaco,monospace;letter-spacing:1px;"><span leaf="">Prompt · 可直接复制</span></span></section>'
-            '<section style="padding:11px 14px;">' + ''.join(p.format(esc(l) or '　') for l in lines) + '</section></section>')
+            '<section style="padding:11px 14px;">'
+            '<p style="margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.6;color:#24292F;">'
+            '<span leaf="">' + esc('\n'.join(lines)) + '</span></p></section></section>')
 
 
-def render_block(b):
-    m = re.fullmatch(r'\x00CODE(\d+)\x00', b)
-    if m:
-        return code_block(codes[int(m.group(1))])
-    if b.startswith('!['):
-        m = re.match(r'!\[(.*?)\]\((.+?)\)', b)
-        return image(m.group(1), m.group(2))
-    if b.startswith('|'):
-        return table(b.split('\n'))
-    if b.startswith('> '):
-        return aside(b[2:].strip())
-    assert not b.startswith(('#', '-', '*', '1.')), '未处理的块：' + b[:30]
-    return para(b.replace('\n', ''))
+def render_block(block):
+    kind, content = block
+    if kind == 'code':
+        return code_block(content)
+    if kind == 'image':
+        return image(*content)
+    if kind == 'table':
+        return table(content)
+    if kind == 'quote':
+        return aside(content)
+    if kind.startswith('heading'):
+        return ('<h4 style="border-left:4px solid #DC2626;padding-left:12px;font-size:16px;line-height:1.8;margin:24px 0 16px;">'
+                + leaf(content) + '</h4>')
+    return para(content)
 
 
-body = []
-for b in blocks:
-    if b.startswith('## '):
-        if chapters == 0:
-            out.append('<section style="padding:0 10px;">' + ''.join(pre) + '</section>')
-            if cfg.get('guide'):
-                out.append(guide(cfg['guide']))
-        else:
-            out.append(''.join(body) + '</section>')
-            out.append(DIVIDER)
+def render(text):
+    blocks = parse_blocks(text)
+    if not blocks or blocks[0][0] != 'heading1':
+        raise ValueError('文章第一行需要是 # 标题')
+    # 公众号标题由复制页单独提供，正文不重复插入。
+    blocks.pop(0)
+    count = sum(kind == 'heading2' for kind, _ in blocks)
+    if count != len(cfg['tags']):
+        raise ValueError(f'章节数 {count} 和英文小标数 {len(cfg["tags"])} 不一致')
+
+    quote = blocks.pop(0)[1] if blocks and blocks[0][0] == 'quote' else None
+    sign = None
+    prefix = cfg.get('signoff_prefix')
+    if prefix and blocks and blocks[-1][0] == 'paragraph' and blocks[-1][1].startswith(prefix):
+        sign = blocks.pop()[1]
+
+    out = []
+    cover = Path(md_dir) / '配图' / '封面-公众号.jpg'
+    # 源稿已放首图时不再重复插入同一封面。
+    explicit_cover = any(kind == 'image' and (Path(md_dir) / content[1]).resolve() == cover.resolve()
+                         for kind, content in blocks)
+    if cover.exists() and not explicit_cover:
+        out.append(image('', str(cover)))
+    if quote is not None:
+        out.append(quote_card(quote))
+
+    chapters, body = 0, []
+    for block in blocks:
+        kind, content = block
+        if kind == 'heading2':
+            if chapters == 0:
+                out.append('<section style="padding:0 10px;">' + ''.join(body) + '</section>')
+                if cfg.get('guide'):
+                    out.append(guide(cfg['guide']))
+            else:
+                out.append(''.join(body) + '</section>')
+                out.append(DIVIDER)
             body = []
-        chapters += 1
-        title = b[3:].strip()
-        out.append(chapter_head(chapters, cfg['tags'][chapters - 1], title, chapters == 1))
-        continue
-    (pre if chapters == 0 else body).append(render_block(b))
-out.append(''.join(body) + '</section>')
-out.append(END)
-if sign:
-    out.append('<section style="padding:0 10px;"><p style="margin-bottom:20px;font-size:15px;line-height:1.8;text-align:justify;">'
-               + leaf(sign) + '</p></section>')
+            chapters += 1
+            out.append(chapter_head(chapters, cfg['tags'][chapters - 1], content, chapters == 1))
+        else:
+            body.append(render_block(block))
+    if chapters:
+        out.append(''.join(body) + '</section>')
+    else:
+        out.append('<section style="padding:0 10px;">' + ''.join(body) + '</section>')
+    out.append(END)
+    if sign is not None:
+        out.append('<section style="padding:0 10px;">' + para(sign) + '</section>')
+    return ('<section style="max-width:677px;margin:0 auto;background:#ffffff;font-family:' + FONT +
+            ';color:#374151;line-height:1.75;letter-spacing:0.5px;overflow-x:hidden;">' + ''.join(out) + '</section>'), chapters
 
-html_out = ('<section style="max-width:677px;margin:0 auto;background:#ffffff;font-family:' + FONT +
-            ';color:#374151;line-height:1.75;letter-spacing:0.5px;overflow-x:hidden;">' + ''.join(out) + '</section>')
-open(out_path, 'w', encoding='utf-8').write(html_out)
 
-assert chapters == len(cfg['tags']), f'章节数 {chapters} 和英文小标数 {len(cfg["tags"])} 不一致'
-missing = [p for p in cfg['phrases'] if p not in used]
-print(f'章节 {chapters}，图片 {html_out.count("<img ")}，下划线 {len(used)}，未用到的短语 {missing}')
+def same_file(a, b):
+    return a.resolve() == b.resolve() or (a.exists() and b.exists() and os.path.samefile(a, b))
+
+
+def main(argv=None):
+    global cfg, md_dir, used
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) != 3:
+        print('用法：python3 -I 红白排版.py <配置.json> <文章 md> <输出 html>', file=sys.stderr)
+        return 2
+    config_path, md_path, out_path = map(Path, argv)
+    try:
+        if any(same_file(out_path, source) for source in (config_path, md_path)):
+            raise ValueError('输出路径不能覆盖源稿或配置（含软链接和硬链接）')
+        original = md_path.read_bytes()
+        source_hash = hashlib.sha256(original).hexdigest()
+        config_bytes = config_path.read_bytes()
+        md_dir = str(md_path.resolve().parent)
+        settings = json.loads(config_bytes)
+        if not isinstance(settings, dict):
+            raise ValueError('配置顶层必须是按文章目录名组织的对象')
+        cfg = settings.get(Path(md_dir).name)
+        if not isinstance(cfg, dict):
+            raise ValueError('配置中缺少文章目录：' + Path(md_dir).name)
+        for key in ('tags', 'phrases', 'quote_highlights'):
+            if key not in cfg or not isinstance(cfg[key], list) or not all(isinstance(v, str) and v for v in cfg[key]):
+                raise ValueError(key + ' 必须是字符串列表，可留空列表')
+        if 'guide' in cfg and (not isinstance(cfg['guide'], list) or not all(isinstance(v, str) for v in cfg['guide'])):
+            raise ValueError('guide 必须是字符串列表')
+        for key in ('author', 'signoff_prefix'):
+            if key in cfg and not isinstance(cfg[key], str):
+                raise ValueError(key + ' 必须是字符串')
+        used = []
+        html_out, chapters = render(original.decode('utf-8').replace('\r\n', '\n'))
+        html_out = html_out.replace('<section ', '<section data-source-file="' + html.escape(md_path.name, quote=True) +
+                                    '" data-source-sha256="' + source_hash + '" ', 1)
+        if hashlib.sha256(md_path.read_bytes()).hexdigest() != source_hash or config_path.read_bytes() != config_bytes:
+            raise ValueError('排版期间源稿或配置发生变化，请重新排版')
+        # 全部解析与校验完成后才替换输出；失败不留下半份成品。
+        if any(same_file(out_path, source) for source in (config_path, md_path)):
+            raise ValueError('输出路径不能覆盖源稿或配置')
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=out_path.parent,
+                                             prefix='.' + out_path.name + '.', delete=False) as f:
+                temporary = Path(f.name)
+                f.write(html_out)
+            os.replace(temporary, out_path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        missing = [p for p in cfg['phrases'] if p not in used]
+        print(f'章节 {chapters}，图片 {html_out.count("<img ")}，下划线 {len(used)}，未用到的短语 {missing}')
+        print(f'源稿 SHA-256：{source_hash}（排版前后相同）')
+        return 0
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        print('排版失败：' + str(error), file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
