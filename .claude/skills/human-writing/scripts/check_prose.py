@@ -388,6 +388,10 @@ def read_text(path: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="检查中文成稿的硬禁令与模型化形状")
     parser.add_argument("path", help="Markdown 或文本文件路径。使用 - 从标准输入读取")
+    parser.add_argument(
+        "--advisory", action="store_true",
+        help="只列字词、标点和句式观察，不作风格判定；风格命中不影响退出码",
+    )
     args = parser.parse_args()
 
     try:
@@ -608,6 +612,50 @@ def main() -> int:
             f"八百字内出现 {len(fields)} 套借喻。{'、'.join(sorted(fields))}。"
             f"例词有 {samples}。"
         )
+
+    if args.advisory:
+        # 使用位置与原文生成独立输出，不转述默认模式的修改指令或风格判断。
+        observations = set()
+        for symbol, label in FORBIDDEN_PUNCTUATION.items():
+            for match in re.finditer(re.escape(symbol), prose):
+                observations.add((match.start(), match.end(), label))
+        for matches in (
+            stop_matches, jargon_matches, context_jargon_matches,
+            lyric_matches, conjunction_hits, marker_matches,
+        ):
+            for position, phrase in matches:
+                observations.add((position, position + len(phrase), "字词"))
+        for label, matches in (
+            ("句首短语", road_signs),
+            ("句式匹配", pivots + semantic_pivots),
+            ("同构小句", anaphoras),
+            ("名词化句式", nominalizations),
+            ("括起的短语", highlights),
+            ("前置成分句式", left_branches),
+            ("含四个以上“的”的长句", dense_de),
+        ):
+            for match in matches:
+                start, end = match.span()
+                while start < end and text[start].isspace():
+                    start += 1
+                observations.add((start, end, label))
+
+        print("只读观察（按原文位置列出）")
+        print("事实真伪未核验；这些匹配的含义取决于作者要求、人工语料与上下文。")
+        for start, end, label in sorted(observations):
+            line_start = text.rfind("\n", 0, start) + 1
+            line_end = text.find("\n", end)
+            if line_end == -1:
+                line_end = len(text)
+            context_start = max(line_start, start - 20)
+            context_end = min(line_end, end + 40)
+            print(
+                f"- 第 {line_number(text, start)} 行第 {start - line_start + 1} 列，"
+                f"{label}：{excerpt(text[context_start:context_end])}"
+            )
+        if not observations:
+            print("本次未匹配到上述字词、标点或句式。")
+        return 0
 
     print(f"汉字数 {total_han}")
     print(
