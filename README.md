@@ -101,6 +101,7 @@ flowchart LR
 │   ├── 红白排版.py + 红白配置.json
 │   ├── 一键复制总页.py
 │   ├── 小红书卡片.py
+│   ├── 逐行改稿.py         # 左右对照改稿页，保存到 2-定稿.md
 │   └── 句子形状.py
 ├── 文章/                   # 每篇一个目录，含一篇示例
 ├── docs/images/            # README 配图
@@ -131,6 +132,7 @@ claude                      # 用 Claude Code 打开
 python3 -I 工具/红白排版.py 工具/红白配置.json 文章/<目录>/1-自改稿.md 文章/<目录>/<名>_排版_红白.html
 python3 -I 工具/小红书卡片.py 文章/<目录>/小红书          # 读取 分镜.json
 python3 -I 工具/一键复制总页.py 文章 总页.html <目录>...
+python3 -I 工具/逐行改稿.py 文章/<目录>                    # 左右对照改稿，保存到 2-定稿.md
 工具/生图.sh 文章/<目录>/配图/封面.png "画面描述"
 python3 -I 工具/句子形状.py 文章/<目录>/1-自改稿.md --reference 语料/改稿对照/samples/<人工稿>.md
 python3 -I .claude/skills/human-writing/scripts/check_prose.py --advisory 文章/<目录>/1-自改稿.md
