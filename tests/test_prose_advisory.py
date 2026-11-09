@@ -9,7 +9,7 @@ from pathlib import Path
 
 SCRIPT = (
     Path(__file__).resolve().parents[1]
-    / ".claude/skills/human-writing/scripts/check_prose.py"
+    / ".agents/skills/human-writing/scripts/check_prose.py"
 )
 
 

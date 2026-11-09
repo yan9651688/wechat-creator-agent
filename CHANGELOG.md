@@ -1,5 +1,17 @@
 # 更新记录
 
+## 2026-11-08（三）· 适配多种 Agent
+
+不再只认 Claude Code。规则只写一份，Codex、Kimi Code、ZCode、Gemini CLI、Cursor 都能用。
+
+- `CLAUDE.md` 改名为 `AGENTS.md`，作为所有 Agent 共用的入口；`CLAUDE.md` 只剩一行 `@AGENTS.md`。`AGENTS.md` 末尾新增「不同 Agent 怎么用这套东西」：不能看图、跑在沙箱里、不自带生图、上下文短时各怎么退，做不到的说清楚并把命令交给作者。
+- 第三方技能从 `.claude/skills/` 移到开放格式的 `.agents/skills/`（Codex、Kimi Code 会自动扫这里）；`.claude/skills` 改成指向它的链接。
+- 新增 `工具/一键配置.py`：检查 Python、Pillow、Chrome、生图通道和技能，按 `--agent claude codex kimi zcode gemini cursor other` 生成入口文件（Gemini 的 `GEMINI.md`）和技能链接，复制 `.env.example`，报告「我是谁」还空几处。只新建不覆盖，不写密钥，不联网；不带 `--agent` 只检查。
+- 新增 `一键配置.md`：写给 Agent 看的配置步骤。作者只要说「读 一键配置.md，帮我把这个仓库配好」。
+- 新增 `requirements.txt`、`tests/test_agent_setup.py`；README 加「适配不同 Agent」一节，开始使用、FAQ、目录结构同步。
+
+各家 Agent 读哪个文件：Codex、Kimi Code 依据官方文档；ZCode 只找到第三方介绍页，技能目录没核实。只在 macOS 上用全新克隆跑过 `--agent all`，Windows 上的技能链接没测。
+
 ## 2026-11-08（二）
 
 给「交给作者人工改」这一步配了对照页，并在改完后加上对照预判、沉淀改法。

@@ -22,5 +22,5 @@ SOFTWARE.
 
 ---
 第三方组件 / Third-party components (keep their own licenses):
-- .claude/skills/gzh-design  — AGPL-3.0, https://github.com/isjiamu/gzh-design-skill
-- .claude/skills/human-writing — MIT, Human Writing Skill contributors
+- .agents/skills/gzh-design  — AGPL-3.0, https://github.com/isjiamu/gzh-design-skill
+- .agents/skills/human-writing — MIT, Human Writing Skill contributors
