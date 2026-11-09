@@ -4,12 +4,12 @@
 
 # 公众号创作 Agent · WeChat Creator Agent
 
-**一个开箱即用的 Claude Code 模板：选题、写稿、改稿、封面配图、排版、小红书卡片、发稿前检查，一条流水线跑完，人只做判断。**
+**一个开箱即用的编程 Agent 工作台模板（Claude Code / Codex / Kimi Code / ZCode / Gemini CLI / Cursor 通用）：选题、写稿、改稿、封面配图、排版、小红书卡片、发稿前检查，一条流水线跑完，人只做判断。**
 
-*A Claude Code template that turns one person into a full WeChat Official Account content team.*
+*An agent-agnostic template (AGENTS.md + Agent Skills) that turns one person into a full WeChat Official Account content team.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-C62A1F.svg)](LICENSE)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-Template-1B1A18)](https://claude.ai/code)
+[![AGENTS.md](https://img.shields.io/badge/AGENTS.md-通用-1B1A18)](#-适配不同-agent)
 [![Image API](https://img.shields.io/badge/生图-OpenAI%20兼容-C62A1F)](#-生图配置)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/yan9651688/wechat-creator-agent/pulls)
 
@@ -32,10 +32,11 @@
 
 用 AI 写公众号，难的从来不是“写出来”，而是：**写得像你**、**排得好看**、**图配得上**、**发之前不出错**。
 
-这个仓库是一个 **Claude Code 工作目录模板**。用 Claude Code 打开它，`CLAUDE.md` 会告诉 Agent 先读哪些规则、按什么顺序干活、哪些事必须停下来等你确认。你只需要填好“我是谁”、攒几篇改稿对照，剩下的交给流水线。
+这个仓库是一个**编程 Agent 工作目录模板**。不管你用 Claude Code、Codex、Kimi Code、ZCode 还是别的 Agent 打开它，`AGENTS.md` 都会告诉 Agent 先读哪些规则、按什么顺序干活、哪些事必须停下来等你确认。你只需要填好“我是谁”、攒几篇改稿对照，剩下的交给流水线。
 
 ## ✨ 核心特性
 
+- **换 Agent 不用重抄规则**：规则只写在 `AGENTS.md` 和 `规则/`，技能按开放的 Agent Skills 格式放在 `.agents/skills/`；`一键配置.py` 按你用的 Agent 生成入口文件和技能链接。
 - **规则驱动，不靠提示词玄学**：`规则/` 下 6 个文件分别管身份、写稿改稿、形象封面、排版、发稿检查、小红书，Agent 每次开工先读。
 - **逐行改稿页**：`逐行改稿.py` 起一个本地对照页，左边自改稿加 AI 的改稿预判，右边直接改，保存成定稿，改完再对照预判沉淀规则。
 - **越用越像你的改稿飞轮**：保存 AI 初稿和你的改稿，每 3～5 篇让 Agent 逐段 diff，把你的改法蒸馏成 `改稿规则.md`，下一篇自动生效。
@@ -92,8 +93,11 @@ AI 自改完先停下，左边是 `1-自改稿.md` 和 `改稿对照.md` 里的�
 
 ```
 .
-├── CLAUDE.md              # Agent 入口：读取顺序、流程、硬规矩
-├── 开始使用.md             # 首次配置清单
+├── AGENTS.md              # 所有 Agent 共用的入口：读取顺序、流程、硬规矩、各家差异
+├── CLAUDE.md              # Claude Code 入口，只有一行 @AGENTS.md
+├── 一键配置.md             # 写给 Agent 看的配置步骤
+├── 开始使用.md             # 首次配置清单（给人看）
+├── requirements.txt
 ├── 规则/
 │   ├── 01-我是谁.md        # 身份、读者、不能写的
 │   ├── 02-写稿与改稿.md
@@ -109,10 +113,12 @@ AI 自改完先停下，左边是 `1-自改稿.md` 和 `改稿对照.md` 里的�
 │   ├── 一键复制总页.py
 │   ├── 小红书卡片.py
 │   ├── 逐行改稿.py         # 左右对照改稿页，保存到 2-定稿.md
+│   ├── 一键配置.py         # 环境检查、生成各 Agent 入口和技能链接
 │   └── 句子形状.py
 ├── 文章/                   # 每篇一个目录，含一篇示例
 ├── docs/images/            # README 配图
-└── .claude/skills/         # gzh-design（AGPL-3.0）、human-writing（MIT）
+├── .agents/skills/         # gzh-design（AGPL-3.0）、human-writing（MIT），Agent Skills 格式
+└── .claude/skills          # 指向 .agents/skills 的链接，给 Claude Code 自动发现用
 ```
 
 ## 🚀 快速开始
@@ -120,14 +126,20 @@ AI 自改完先停下，左边是 `1-自改稿.md` 和 `改稿对照.md` 里的�
 ```bash
 git clone https://github.com/yan9651688/wechat-creator-agent.git
 cd wechat-creator-agent
-cp .env.example .env        # 需要生图时再填
-pip install pillow          # 一键复制总页需要
-claude                      # 用 Claude Code 打开
+claude      # 或 codex / kimi / 你用的任何 Agent
 ```
 
-然后对 Claude 说：
+然后对 Agent 说一句：
 
-> 读一下 开始使用.md，带我完成首次配置。
+> 读 `一键配置.md`，帮我把这个仓库配好。
+
+它会自己跑 `python3 -I 工具/一键配置.py --agent <它自己>`：检查 Python、Pillow、Chrome、生图通道，生成它需要的入口文件和技能链接，再问你三个问题把 `规则/01-我是谁.md` 填上。不想让 Agent 做，也可以自己跑：
+
+```bash
+python3 -m pip install -r requirements.txt
+cp .env.example .env                              # 需要生图时再填密钥
+python3 -I 工具/一键配置.py --agent claude codex  # 你用哪几个就写哪几个，all 表示全部
+```
 
 配置完成后，日常就一句话：
 
@@ -142,10 +154,28 @@ python3 -I 工具/一键复制总页.py 文章 总页.html <目录>...
 python3 -I 工具/逐行改稿.py 文章/<目录>                    # 左右对照改稿，保存到 2-定稿.md
 工具/生图.sh 文章/<目录>/配图/封面.png "画面描述"
 python3 -I 工具/句子形状.py 文章/<目录>/1-自改稿.md --reference 语料/改稿对照/samples/<人工稿>.md
-python3 -I .claude/skills/human-writing/scripts/check_prose.py --advisory 文章/<目录>/1-自改稿.md
+python3 -I .agents/skills/human-writing/scripts/check_prose.py --advisory 文章/<目录>/1-自改稿.md
 ```
 
 审稿提示不是必须清零的错误。作者已确认的冒号、重复、短句、长句和强判断都可以保留；没有人工语料时，不拿别人的句长或口头禅填空。近期调整与回归检查见 [更新说明](CHANGELOG.md)。
+
+## 🤝 适配不同 Agent
+
+规则只有一份，写在 `AGENTS.md`；技能按 [Agent Skills](https://agentskills.io) 格式放在 `.agents/skills/`。各家读的入口和技能目录不一样，`工具/一键配置.py` 负责补齐：
+
+| Agent | `--agent` | 自动读的入口 | 技能 | 一键配置做什么 |
+|---|---|---|---|---|
+| Claude Code | `claude` | `CLAUDE.md`，里面 `@AGENTS.md` 导入 | `.claude/skills`（链接到 `.agents/skills`） | 检查 `CLAUDE.md`，补技能链接 |
+| Codex CLI | `codex` | `AGENTS.md` | `.agents/skills` | 不用生成文件 |
+| Kimi Code | `kimi` | `AGENTS.md` | `.agents/skills` | 不用生成文件 |
+| ZCode | `zcode` | `AGENTS.md` | 未核实，按路径读 `SKILL.md` | 不用生成文件 |
+| Gemini CLI | `gemini` | `GEMINI.md` | 按路径读 `SKILL.md` | 生成指回 `AGENTS.md` 的 `GEMINI.md` |
+| Cursor | `cursor` | `AGENTS.md` | 按路径读 `SKILL.md` | 不用生成文件 |
+| 其他 | `other` | 第一句让它读 `AGENTS.md` | 按路径读 `SKILL.md` | 不用生成文件 |
+
+模型能力也不一样：有的不能看图，有的跑在沙箱里不能联网或起本地端口，有的不自带生图，有的上下文短。`AGENTS.md` 最后一节「不同 Agent 怎么用这套东西」按能力写了退路：做不到的就说清楚卡在哪、把命令交给你，不假装做过；要记住的事写进仓库文件，不只存在某一家的记忆里，换 Agent 也接得上。
+
+> 表里 ZCode 的说法来自第三方介绍页，智谱官方文档里没找到入口文件和技能目录的说明；Codex、Kimi Code 依据各自官方文档。这些 Agent 更新很快，以你手上的版本为准，读不到 `AGENTS.md` 的就在第一句话里让它先读。
 
 ## 🎨 生图配置
 
@@ -179,7 +209,10 @@ python3 -I .claude/skills/human-writing/scripts/check_prose.py --advisory 文章
 ## ❓ FAQ
 
 **Q：必须用 Claude Code 吗？**
-A：规则和工具都是普通文件，Codex、Cursor 等能读 `CLAUDE.md` 的 Agent 也能用，Claude Code 体验最好。
+A：不用。规则在 `AGENTS.md`，Codex、Kimi Code、ZCode、Cursor 原生读它，Claude Code 和 Gemini CLI 通过一行导入读它。见「适配不同 Agent」。
+
+**Q：同时用好几个 Agent 会打架吗？**
+A：不会，大家读的是同一份 `AGENTS.md` 和同一批文件。只要别让两个 Agent 同时改同一篇稿子。
 
 **Q：没有生图密钥能用吗？**
 A：能。除生图外的写稿、排版、卡片、总页都不依赖任何 API；生图可用 Codex CLI 或手动放图。
@@ -210,4 +243,4 @@ A：不会，文字由 Chromium 渲染，模型只负责底图。
 
 ## 📄 许可证
 
-本项目代码与模板以 [MIT](LICENSE) 协议开源。`.claude/skills/` 下的第三方 skill 保留各自许可证：`gzh-design` 为 AGPL-3.0，`human-writing` 为 MIT。
+本项目代码与模板以 [MIT](LICENSE) 协议开源。`.agents/skills/` 下的第三方 skill 保留各自许可证：`gzh-design` 为 AGPL-3.0，`human-writing` 为 MIT。
