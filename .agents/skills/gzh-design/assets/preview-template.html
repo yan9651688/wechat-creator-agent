@@ -14,7 +14,11 @@
   .gzh-copy:active{transform:translateY(1px);}
   .gzh-toast{position:fixed;top:66px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:88vw;text-align:center;}
   .gzh-toast.show{opacity:1;}
-  .gzh-stage{max-width:700px;margin:78px auto 64px;padding:0 8px;}
+  .gzh-stage{max-width:700px;margin:16px auto 64px;padding:0 8px;}
+  .gzh-titlebar{max-width:700px;margin:78px auto 0;padding:0 8px;box-sizing:border-box;}
+  .gzh-titlebox{background:#fff;border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:center;box-shadow:0 1px 6px rgba(0,0,0,.06);}
+  .gzh-titletext{flex:1;font-size:16px;font-weight:700;color:#111827;line-height:1.5;word-break:break-all;}
+  .gzh-titlecopy{background:#fff;color:#059669;border:1.5px solid #059669;border-radius:9px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;}
   @media(max-width:520px){.gzh-hint{max-width:150px;}}
 </style>
 </head>
@@ -24,6 +28,10 @@
   <button class="gzh-copy" id="gzhCopyBtn" onclick="gzhCopy()">📋 复制到公众号</button>
 </div>
 <div class="gzh-toast" id="gzhToast"></div>
+<div class="gzh-titlebar"><div class="gzh-titlebox">
+  <div class="gzh-titletext" id="gzhTitle">{{ARTICLE_TITLE}}</div>
+  <button class="gzh-titlecopy" id="gzhTitleBtn" onclick="gzhCopyTitle()">复制标题</button>
+</div></div>
 <div class="gzh-stage">
   <div id="gzh-content">
 <!--GZH_CONTENT-->
@@ -35,6 +43,17 @@
     t.textContent=msg;t.classList.add('show');
     clearTimeout(t._timer);
     t._timer=setTimeout(function(){t.classList.remove('show');},2800);
+  }
+  function gzhCopyTitle(){
+    var text=document.getElementById('gzhTitle').innerText.trim();
+    var btn=document.getElementById('gzhTitleBtn');
+    var done=function(){gzhShowToast('✅ 标题已复制');btn.textContent='✅ 已复制';setTimeout(function(){btn.textContent='复制标题';},2200);};
+    if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,fallback);}else{fallback();}
+    function fallback(){
+      var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';
+      document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}
+      document.body.removeChild(ta);ok?done():gzhShowToast('⚠ 浏览器阻止复制，请手动选中标题');
+    }
   }
   function gzhCopy(){
     var el=document.getElementById('gzh-content');
