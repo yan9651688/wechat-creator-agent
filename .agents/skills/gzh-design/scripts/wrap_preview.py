@@ -32,7 +32,11 @@ def main():
     tpl = open(tpl_path, encoding="utf-8").read()
 
     title = os.path.splitext(os.path.basename(src))[0]
-    out_html = tpl.replace("{{TITLE}}", title).replace("<!--GZH_CONTENT-->", content)
+    import html as _html
+    article_title = title.split("_排版_")[0]
+    out_html = (tpl.replace("{{TITLE}}", title)
+                .replace("{{ARTICLE_TITLE}}", _html.escape(article_title))
+                .replace("<!--GZH_CONTENT-->", content))
 
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.splitext(src)[0] + "_预览.html"
     open(out, "w", encoding="utf-8").write(out_html)

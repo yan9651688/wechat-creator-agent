@@ -28,23 +28,19 @@ if [ -n "${IMAGE_API_KEY:-}" ]; then
   MODEL="${IMAGE_MODEL:-gpt-image-1}"
   SIZE="${IMAGE_SIZE:-1024x1024}"
   STYLE_NOTE="$(cat "$ROOT/素材/IP/角色与画风说明.txt" 2>/dev/null || true)"
-  [ "${NO_IP:-}" = "1" ] && STYLE_NOTE=""
+  API_REFS=""
+  if [ "${NO_IP:-}" != "1" ]; then
+    for f in "$ROOT"/素材/IP/身份参考.* "$ROOT"/素材/IP/风格参考.*; do
+      [ -f "$f" ] && API_REFS="${API_REFS:+$API_REFS,}$f"
+    done
+  else
+    STYLE_NOTE=""
+  fi
   P="${STYLE_NOTE:+$STYLE_NOTE
 }$PROMPT
 不要水印、不要随机 logo。"
-  mkdir -p "$(dirname "$OUT")"
-  RESP="$(python3 -c 'import json,sys;print(json.dumps({"model":sys.argv[1],"prompt":sys.argv[2],"size":sys.argv[3],"n":1}))' "$MODEL" "$P" "$SIZE" \
-    | curl -sS -X POST "$BASE/images/generations" -H "Authorization: Bearer $IMAGE_API_KEY" -H "Content-Type: application/json" -d @-)"
-  printf '%s' "$RESP" | python3 -c '
-import json,sys,base64,urllib.request
-d=json.load(sys.stdin)["data"][0]; out=sys.argv[1]
-if d.get("b64_json"): open(out,"wb").write(base64.b64decode(d["b64_json"]))
-else: urllib.request.urlretrieve(d["url"], out)' "$OUT" || { echo "生图失败：$(printf '%s' "$RESP" | head -c 300)" >&2; exit 2; }
-  LOG_DIR="$(dirname "$OUT")"
-  case "$(basename "$LOG_DIR")" in 配图|底图) LOG_DIR="$(dirname "$LOG_DIR")" ;; esac
-  mkdir -p "$LOG_DIR/提示词"
-  printf '时间：%s\n模型：%s\n\n%s\n' "$(date '+%F %T')" "$MODEL" "$PROMPT" > "$LOG_DIR/提示词/$(basename "${OUT%.*}").txt"
-  echo "$OUT"; exit 0
+  # 有参考图走 /images/edits，没有走 /images/generations；接口忙会自动重试
+  exec python3 -I "$ROOT/工具/生图api.py" "$OUT" "$P" --size "$SIZE" --model "$MODEL" ${API_REFS:+--ref "$API_REFS"}
 fi
 # ---- 模式二：没配 API 时，用 Codex CLI 的 image_gen ----
 
